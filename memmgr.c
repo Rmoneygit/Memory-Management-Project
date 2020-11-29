@@ -98,6 +98,9 @@ int main(int argc, const char* argv[]) {
         pageFaultCount++;
       }
 
+      physical_add = page_table[page] * FRAME_SIZE + offset;
+      address_value = memory[page_table[page]][offset];
+
       // If the TLB still has room, append new entry
       if(TLBsize != 16){
         TLB[TLBsize][0] = page;
@@ -114,11 +117,8 @@ int main(int argc, const char* argv[]) {
       }
 
     }
-    
-    physical_add = page_table[page] * FRAME_SIZE + offset; 
-    assert(physical_add == phys_add);
 
-    address_value = memory[page_table[page]][offset];
+    assert(physical_add == phys_add);
     assert(address_value == value);
     
     printf("logical: %5u (page: %3u, offset: %3u) ---> physical: %5u (value: %4d) -- passed\n", logic_add, page, offset, physical_add, value);

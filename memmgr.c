@@ -16,8 +16,32 @@
 #define BUFLEN 256
 #define FRAME_SIZE  256
 
+unsigned page_table[256];
+int memoryFull = 0;
+char memory[256][256];
 
 //-------------------------------------------------------------------
+void pageFault(unsigned page, char buf[]){
+  FILE* fback = fopen("BACKING_STORE.bin", "r");    // open file BACKING_STORE.bin (represents data on disk)
+  if(fback == NULL) { fprintf(stderr, "Could not open file: 'BACKING_STORE.bin'\n");  exit(FILE_ERROR); }
+
+  if(fseek(fback, 256*page, SEEK_SET) != 0){
+    printf("Page not found!");
+    return;
+  }
+
+  fread(buf, BUFLEN, 1, fback);
+
+  for(int i=0; i<256; i++){
+    memory[memoryFull][i] = buf[i];
+  }
+
+  page_table[page] = memoryFull;
+  memoryFull++;
+
+  fclose(fback);
+}
+
 unsigned getpage(unsigned x) { return (0xff00 & x) >> 8; }
 
 unsigned getoffset(unsigned x) { return (0xff & x); }
@@ -40,42 +64,35 @@ int main(int argc, const char* argv[]) {
   unsigned   page, offset, physical_add, frame = 0;
   unsigned   logic_add;                  // read from file address.txt
   unsigned   virt_add, phys_add, value;  // read from file correct.txt
+  memset(page_table, -1, sizeof(page_table));
 
   printf("ONLY READ FIRST 20 entries -- TODO: change to read all entries\n\n");
 
-  // not quite correct -- should search page table before creating a new entry
-      //   e.g., address # 25 from addresses.txt will fail the assertion
-      // TODO:  add page table code
-      // TODO:  add TLB code
-  while (frame < 20) {
+  while (frame < 1000) {
 
     fscanf(fcorr, "%s %s %d %s %s %d %s %d", buf, buf, &virt_add,
            buf, buf, &phys_add, buf, &value);  // read from file correct.txt
 
     fscanf(fadd, "%d", &logic_add);  // read from file address.txt
-    page   = getpage(  logic_add);
+    page   = getpage(logic_add);
     offset = getoffset(logic_add);
+
+    // If the page number is not in the page table
+    if(page_table[page] == -1){
+      pageFault(page, buf);
+    }
     
-    physical_add = frame++ * FRAME_SIZE + offset;
-    
+    physical_add = page_table[page] * FRAME_SIZE + offset; 
     assert(physical_add == phys_add);
     
     // todo: read BINARY_STORE and confirm value matches read value from correct.txt
     
     printf("logical: %5u (page: %3u, offset: %3u) ---> physical: %5u -- passed\n", logic_add, page, offset, physical_add);
+    frame++;
     if (frame % 5 == 0) { printf("\n"); }
   }
   fclose(fcorr);
   fclose(fadd);
-  
-  printf("ONLY READ FIRST 20 entries -- TODO: change to read all entries\n\n");
-  
-  printf("ALL logical ---> physical assertions PASSED!\n");
-  printf("!!! This doesn't work passed entry 24 in correct.txt, because of a duplicate page table entry\n");
-  printf("--- you have to implement the PTE and TLB part of this code\n");
-
-//  printf("NOT CORRECT -- ONLY READ FIRST 20 ENTRIES... TODO: MAKE IT READ ALL ENTRIES\n");
-
   printf("\n\t\t...done.\n");
   return 0;
 }
